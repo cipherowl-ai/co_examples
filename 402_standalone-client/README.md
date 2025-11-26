@@ -1,422 +1,139 @@
 # CipherOwl x402 Screening Client
 
-A standalone example client for CipherOwl's x402-protected blockchain address screening API.
+A TypeScript client for CipherOwl's x402-protected blockchain address screening API.
 
-## Overview
+Uses the official [x402-fetch](https://www.npmjs.com/package/x402-fetch) package to handle the x402 payment protocol automatically.
 
-This client demonstrates how to use the **x402 protocol** for micropayments to access CipherOwl's blockchain address screening service. The x402 protocol enables pay-per-use APIs using cryptocurrency (USDC) without requiring subscriptions or API keys.
+## Features
 
-### What is x402?
-
-x402 is a protocol for HTTP micropayments. Instead of traditional authentication:
-1. Client makes a request → Server responds with `402 Payment Required`
-2. Client creates a cryptographic payment proof (EIP-3009 authorization)
-3. Client retries with payment proof → Server verifies and responds
-
-**Benefits:**
-- ✅ No API keys or subscriptions
-- ✅ Pay only for what you use
-- ✅ Gasless payments (no blockchain transaction required)
-- ✅ Instant settlement on-chain
+- **Official x402 integration** - Uses the standard x402-fetch package
+- **Automatic payments** - Handles 402 Payment Required flow automatically
+- **Multi-chain screening** - Screen addresses on EVM, Bitcoin, Solana, Tron
+- **Type-safe** - Full TypeScript support
 
 ## Quick Start
 
-### 1. Install Dependencies
-
 ```bash
+# Install dependencies
 bun install
-# or
-npm install
-```
+# or: npm install
 
-### 2. Set Up Environment
+# Set your private key (must have USDC on Base mainnet)
+export EVM_PRIVATE_KEY=0x...
 
-```bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit .env and set your private key
-export EVM_PRIVATE_KEY=0xyour_private_key_here
-```
-
-### 3. Run the Example
-
-```bash
+# Run the example
 bun run example
-# or
-npm run example
-```
-
-You should see:
-
-```
-🦉 CipherOwl x402 Screening Client
-
-📦 Initializing X402Client
-✅ Client ready
-   Wallet:  0xYourAddress
-   Network: base-sepolia
-   API:     https://x402.cipherowl.ai
-
-📤 Screening address...
-   Chain:   evm
-   Address: 0x3fdee07b0756651152bf11c8d170d72d7ebbec49
-   Config:  co-high_risk_ext_hops_2
-
-✅ Request completed in 1234ms
-
-📊 Screening Results:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Chain:       evm
-Address:     0x3fdee07b0756651152bf11c8d170d72d7ebbec49
-Risk Found:  ✅ NO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🎉 Screening complete!
+# or: npx ts-node index.ts
 ```
 
 ## Usage
 
-### Basic Example
+### Basic Screening
 
 ```typescript
 import { X402Client } from "./client";
-import { baseSepolia } from "viem/chains";
 
-// Initialize client
-const client = new X402Client({
+const client = await X402Client.create({
   evmPrivateKey: process.env.EVM_PRIVATE_KEY as `0x${string}`,
-  network: baseSepolia,
+  network: "base", // Production uses Base mainnet
+  maxPayment: BigInt(1_000_000), // 1.00 USDC max (screening costs $0.50)
 });
 
-// Screen an address (payment handled automatically!)
-const result = await client.request(
-  "https://x402.cipherowl.ai/api-402/screen/v1/chains/evm/addresses/0x..."
+// Screen an address
+const result = await client.screenAddress(
+  "https://api.cipherowl.ai",
+  "evm",
+  "0x3fdee07b0756651152bf11c8d170d72d7ebbec49",
+  "co-high_risk_ext_hops_2"
 );
 
 console.log(result.data);
+// {
+//   chain: "evm",
+//   address: "0x3fdee07b...",
+//   foundRisk: true,
+//   riskScore: 85
+// }
 ```
 
-### Screen Multiple Chains
+### Generic Request
 
 ```typescript
-const chains = [
-  { chain: "evm", address: "0x..." },
-  { chain: "bitcoin", address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa" },
-  { chain: "solana", address: "7EqQdEUfQqo2gRKmJhZdCKQYqBbJmhPKqWHyLpHKcKHJ" },
-];
-
-for (const { chain, address } of chains) {
-  const endpoint = `${apiUrl}/api-402/screen/v1/chains/${chain}/addresses/${address}`;
-  const result = await client.request(endpoint);
-  console.log(`${chain}: ${result.data.foundRisk ? 'RISK' : 'CLEAN'}`);
-}
+// Make any x402-protected request
+const result = await client.request(
+  "https://api.cipherowl.ai/api-402/screen/v1/chains/evm/addresses/0x..."
+);
 ```
 
-## API Reference
-
-### X402Client
+### Error Handling
 
 ```typescript
-class X402Client {
-  constructor(options: {
-    evmPrivateKey: `0x${string}`;  // Your wallet private key
-    facilitatorUrl?: string;        // API base URL (default: https://x402.cipherowl.ai)
-    network?: Chain;                // base or baseSepolia (default: base)
-    rpcUrl?: string;                // Optional RPC endpoint
-    logger?: Console;               // Optional logger
-  });
-
-  getAddress(): string;             // Get your wallet address
-
-  async request<T>(                 // Make a request with automatic payment
-    url: string,
-    options?: RequestInit
-  ): Promise<{
-    data: T;
-    status: number;
-    headers: Headers;
-  }>;
-}
-```
-
-### Screening Endpoint
-
-```
-GET /api-402/screen/v1/chains/:chain/addresses/:address?config=:config
-```
-
-**Parameters:**
-- `chain`: `evm`, `bitcoin`, `solana`, or `tron`
-- `address`: Blockchain address to screen
-- `config` (optional): Screening configuration
-
-**Response:**
-```json
-{
-  "chain": "evm",
-  "address": "0x...",
-  "foundRisk": false,
-  "riskScore": 0,
-  "config": "co-high_risk_ext_hops_2"
+try {
+  const result = await client.screenAddress(
+    "https://api.cipherowl.ai",
+    "evm",
+    address,
+    "co-high_risk_ext_hops_2"
+  );
+  console.log(result.data);
+} catch (error) {
+  if (error.message.includes("Payment amount exceeds")) {
+    console.error("Payment too high - increase maxPayment option");
+  } else if (error.message.includes("insufficient_funds")) {
+    console.error("Wallet needs more USDC on Base mainnet");
+  } else {
+    console.error("Screening failed:", error.message);
+  }
 }
 ```
 
 ## Configuration
 
-### Environment Variables
+| Option          | Required | Default               | Description                       |
+| --------------- | -------- | --------------------- | --------------------------------- |
+| `evmPrivateKey` | Yes      | -                     | Your wallet private key           |
+| `network`       | No       | `base`                | Settlement network (Base mainnet) |
+| `maxPayment`    | No       | `1000000` (1.00 USDC) | Maximum payment in base units     |
+| `logger`        | No       | -                     | Logger for debugging              |
+
+## Environment Variables
 
 ```bash
-# Required
-EVM_PRIVATE_KEY=0x...              # Your wallet private key
-
-# Optional
-API_URL=https://x402.cipherowl.ai  # API endpoint (default)
-NETWORK=base-sepolia               # base or base-sepolia (default: base-sepolia)
-RPC_URL=https://...                # Custom RPC endpoint
+EVM_PRIVATE_KEY=0x...              # Required: Your wallet private key
+API_URL=https://api.cipherowl.ai   # Optional: API endpoint (default)
+NETWORK=base                       # Optional: base (default) or base-sepolia
+MAX_PAYMENT=1000000                # Optional: Max payment in USDC base units
 ```
 
-### Networks
+## How x402 Works
 
-- **base-sepolia**: Testnet (for development)
-- **base**: Mainnet (for production)
+1. **Request** - Client makes request to x402-protected endpoint
+2. **402 Response** - Server returns 402 Payment Required with payment details
+3. **Payment** - x402-fetch automatically creates EIP-3009 signed payment
+4. **Retry** - Request retried with X-PAYMENT header
+5. **Response** - Server verifies payment and returns data
 
-Get testnet funds:
-- Base Sepolia ETH: https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet
-- Base Sepolia USDC: Bridge from Sepolia or use faucets
+## Supported Chains for Screening
 
-## How It Works
-
-### x402 Payment Flow
-
-1. **Initial Request**
-   ```
-   GET /api-402/screen/v1/chains/evm/addresses/0x...
-   ```
-
-2. **Server Response (402 Payment Required)**
-   ```json
-   {
-     "accepts": [{
-       "scheme": "exact",
-       "network": "base-sepolia",
-       "maxAmountRequired": "10000",
-       "payTo": "0x...",
-       "asset": "0x036CbD...",
-       "resource": "/api-402/screen/v1/..."
-     }],
-     "x402Version": 1
-   }
-   ```
-
-3. **Client Creates Payment**
-   - Creates EIP-3009 `TransferWithAuthorization` message
-   - Signs with your private key (EIP-712 signature)
-   - Encodes as base64
-
-4. **Retry with Payment**
-   ```
-   GET /api-402/screen/v1/chains/evm/addresses/0x...
-   Headers:
-     X-PAYMENT: eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweDAwMDAwMCIsImF1dGhvcml6YXRpb24iOnsic...
-   ```
-
-5. **Server Verifies and Responds**
-   ```json
-   {
-     "chain": "evm",
-     "address": "0x...",
-     "foundRisk": false
-   }
-   ```
-
-### EIP-3009: TransferWithAuthorization
-
-The payment proof uses EIP-3009, which allows gasless USDC transfers:
-
-```typescript
-{
-  from: "0xYourAddress",           // Your wallet
-  to: "0xRecipientAddress",        // API provider's wallet
-  value: "10000",                  // Amount in USDC units (0.01 USDC)
-  validAfter: "1234567890",        // Unix timestamp (now)
-  validBefore: "1234571490",       // Unix timestamp (now + 1 hour)
-  nonce: "0xrandom32bytes",        // Unique nonce
-  signature: "0x..."               // Your EIP-712 signature
-}
-```
-
-The server verifies the signature and executes the transfer on-chain.
-
-## Supported Blockchains
-
-| Chain | Identifier | Example Address |
-|-------|-----------|-----------------|
-| Ethereum/EVM | `evm` | `0x3fdee07b0756651152bf11c8d170d72d7ebbec49` |
-| Bitcoin | `bitcoin` | `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa` |
-| Solana | `solana` | `7EqQdEUfQqo2gRKmJhZdCKQYqBbJmhPKqWHyLpHKcKHJ` |
-| Tron | `tron` | `TYASr5UV6HEcXatwdFQfmLVUqQQQMUxHLS` |
-
-## Troubleshooting
-
-### "EVM_PRIVATE_KEY environment variable required"
-
-```bash
-# Set your private key
-export EVM_PRIVATE_KEY=0xyour_64_character_hex_key
-
-# Verify it's set
-echo $EVM_PRIVATE_KEY
-```
-
-### "Failed to create payment"
-
-- Ensure your wallet has USDC on the correct network
-- Verify you have ETH for gas fees (even though no gas is paid upfront)
-- Check your private key is valid (64 hex characters)
-
-### "Connection refused" or "Network error"
-
-- Verify the API URL is correct
-- Check your internet connection
-- For local development, ensure the server is running
-
-### "Insufficient USDC balance"
-
-- Get testnet USDC from faucets
-- Check balance: https://sepolia.basescan.org/address/YOUR_ADDRESS
-- Ensure you're on the correct network (base-sepolia vs base)
-
-## Security
-
-⚠️ **IMPORTANT SECURITY WARNINGS:**
-
-1. **Never commit private keys** to version control
-2. **Use testnet for development** (base-sepolia)
-3. **Use separate wallets** for testing vs production
-4. **Only fund wallets** with amounts you're willing to lose
-5. **Rotate keys immediately** if exposed
-6. **Use environment variables** for all secrets
-
-### Best Practices
-
-- ✅ Use `.env` files (add to `.gitignore`)
-- ✅ Use different keys for dev/prod
-- ✅ Use hardware wallets for production
-- ✅ Implement key management (AWS KMS, HashiCorp Vault, etc.)
-- ✅ Monitor wallet balances and transactions
-- ✅ Set up alerts for unusual activity
+| Chain   | Identifier | Example         |
+| ------- | ---------- | --------------- |
+| EVM     | `evm`      | `0x3fdee07b...` |
+| Bitcoin | `bitcoin`  | `1A1zP1eP5Q...` |
+| Solana  | `solana`   | `7EqQdEUfQq...` |
+| Tron    | `tron`     | `TYASr5UV6H...` |
 
 ## Pricing
 
-Typical costs (varies by configuration):
-- **Address screening**: ~$0.01 USDC per request
-- **Batch screening**: Priced per address
-- **Custom configs**: May have different pricing
+- Production screening: **$0.50 USDC** per address
+- Payment network: **Base mainnet**
+- Payment asset: **USDC** (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
 
-Check the latest pricing at: https://cipherowl.ai/pricing
+## Security
 
-## Integration
-
-### Install as Dependency
-
-If you publish this as a package:
-
-```bash
-npm install @cipherowl/x402-screening-client
-# or
-bun add @cipherowl/x402-screening-client
-```
-
-Then use in your code:
-
-```typescript
-import { X402Client } from "@cipherowl/x402-screening-client";
-
-const client = new X402Client({
-  evmPrivateKey: process.env.EVM_PRIVATE_KEY as `0x${string}`,
-});
-
-const result = await client.request(
-  `https://x402.cipherowl.ai/api-402/screen/v1/chains/evm/addresses/${address}`
-);
-```
-
-### Copy Into Your Project
-
-Alternatively, copy `client.ts` into your project:
-
-```
-your-project/
-├── src/
-│   └── utils/
-│       └── x402-client.ts  # Copy client.ts here
-└── package.json
-```
-
-## Development
-
-### Project Structure
-
-```
-standalone-client/
-├── client.ts           # X402Client implementation
-├── index.ts            # Example usage
-├── package.json        # Dependencies and scripts
-├── .env.example        # Environment template
-├── README.md           # This file
-└── LICENSE             # MIT License
-```
-
-### Dependencies
-
-- **viem**: Ethereum client library (for signing and RPC)
-- Minimal dependencies for maximum compatibility
-
-### Testing
-
-```bash
-# Set test environment
-export EVM_PRIVATE_KEY=0x...
-export NETWORK=base-sepolia
-export API_URL=https://x402.cipherowl.ai
-
-# Run example
-bun run example
-```
-
-## Resources
-
-- **x402 Protocol**: https://x402.gitbook.io/x402
-- **CipherOwl API**: https://readme.cipherowl.ai/
-- **EIP-3009**: https://eips.ethereum.org/EIPS/eip-3009
-- **Base Network**: https://docs.base.org/
-- **Viem Docs**: https://viem.sh/
-
-## Support
-
-For questions or issues:
-- **CipherOwl Support**: support@cipherowl.ai
-- **GitHub Issues**: https://github.com/cipherowl/x402-screening-client-example/issues
-- **Documentation**: https://readme.cipherowl.ai/
+- Never commit `.env` or private keys
+- Use testnet (`base-sepolia`) with local server for development
+- Keep wallet balances low
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## Changelog
-
-### v0.1.0 (2025-11-01)
-- Initial release
-- Basic x402 client implementation
-- Support for EVM, Bitcoin, Solana, Tron
-- Example usage and documentation
+MIT
