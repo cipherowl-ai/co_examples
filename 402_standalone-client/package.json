@@ -1,0 +1,38 @@
+{
+  "name": "@cipherowl/x402-screening-client-example",
+  "version": "1.0.0",
+  "description": "Example client for CipherOwl's x402-protected screening API",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "example": "bun run index.ts",
+    "example:batch": "bun run examples/batch-screening.ts",
+    "example:multi-config": "bun run examples/multi-config.ts"
+  },
+  "keywords": [
+    "cipherowl",
+    "x402",
+    "blockchain",
+    "screening",
+    "risk-assessment",
+    "eip-3009",
+    "usdc",
+    "micropayments"
+  ],
+  "author": "CipherOwl",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cipherowl/x402-screening-client-example"
+  },
+  "dependencies": {
+    "viem": "^2.38.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
